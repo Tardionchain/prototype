@@ -1,9 +1,23 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import BRAIN from "@/lib/connectome";
 import { circle, IKChain } from "@/lib/IK";
+import { NeuronState } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 
 const TardiSimulation = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [neuronStates, setNeuronStates] = useState<NeuronState[]>([]);
+  const neuronNamesRef = useRef<string[]>([]);
 
   useEffect(() => {
     let facingDir = 0;
@@ -14,8 +28,26 @@ const TardiSimulation = () => {
 
     BRAIN.setup();
 
+    neuronNamesRef.current = Object.keys(BRAIN.connectome || {});
+    if (neuronNamesRef.current.length > 0) {
+      console.log("Neuron names:", neuronNamesRef.current);
+    } else {
+      console.warn("BRAIN.connectome is empty.");
+    }
+
     const updateBrain = () => {
       BRAIN.update();
+
+      const updatedNeurons = neuronNamesRef.current.map((ps) => {
+        const neuron = BRAIN.postSynaptic[ps]?.[BRAIN.thisState] || 0;
+        return {
+          name: ps,
+          backgroundColor: "#55FF55",
+          opacity: Math.min(1, neuron / 50),
+        };
+      });
+      setNeuronStates(updatedNeurons);
+
       const scalingFactor = 20;
       const newDir = (BRAIN.accumleft - BRAIN.accumright) / scalingFactor;
       targetDir = facingDir + newDir * Math.PI;
@@ -134,7 +166,54 @@ const TardiSimulation = () => {
     };
   }, []);
 
-  return <canvas ref={canvasRef} style={{ display: "block" }} />;
+  return (
+    <div className="flex flex-col overflow-hidden h-screen">
+      <Drawer>
+        <DrawerTrigger asChild>
+          <Button
+            variant="outline"
+            className="absolute bottom-4 left-1/2 transform -translate-x-1/2"
+          >
+            Open Brain 🧠
+          </Button>
+        </DrawerTrigger>
+        <DrawerContent>
+          <div className="mx-auto w-full max-w-2xl">
+            <DrawerHeader>
+              <DrawerTitle>Tardi brain activities</DrawerTitle>
+              <DrawerDescription>post-synaptic neurons</DrawerDescription>
+            </DrawerHeader>
+            <div className="p-4 pb-0">
+              <div className="h-fit w-full transition-all flex gap-0 flex-wrap">
+                {neuronStates.map(({ name, backgroundColor, opacity }) => (
+                  <div key={name}>
+                    <span
+                      id={name}
+                      className="brainNode"
+                      style={{
+                        display: "block",
+                        border: "1px solid #000",
+                        padding: "5px",
+                        backgroundColor,
+                        opacity,
+                      }}
+                    ></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <DrawerFooter>
+              <DrawerClose asChild>
+                <Button variant="outline">Close</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      <canvas ref={canvasRef} style={{ display: "block", flex: 1 }} />
+    </div>
+  );
 };
 
 export default TardiSimulation;

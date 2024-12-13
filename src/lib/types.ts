@@ -7,6 +7,12 @@ export type tardigradeHistory = {
   timestamp: number;
 };
 
+export interface NeuronState {
+  name: string;
+  backgroundColor: string;
+  opacity: number;
+}
+
 export interface ITransaction extends Document {
   signature: string;
   from: string;

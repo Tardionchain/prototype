@@ -285,7 +285,6 @@ const BRAIN: Brain = {
     Object.keys(this.weights).forEach((key) => {
       this.postSynaptic[key] = [0, 0];
     });
-    console.log(this.postSynaptic);
   },
   update() {
     if (this.stimulateHungerNeurons) {
