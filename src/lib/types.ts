@@ -13,13 +13,13 @@ export interface NeuronState {
   opacity: number;
 }
 
-export interface ITransaction extends Document {
+export interface ITransaction {
   signature: string;
   from: string;
   to: string;
   amount: string;
   slot: number;
-  blockTime: number | null;
+  blockTime?: number;
   activity_type: string;
 }
 
