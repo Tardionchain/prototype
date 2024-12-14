@@ -1,4 +1,21 @@
-import { weights } from "@/lib/constants";
+import axios from "axios";
+export let weights: Record<string, Record<string, number>> = {};
+
+export async function initializeWeights() {
+  try {
+    console.log("Fetching weights from the API...");
+    const response = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/rpc`,
+    );
+    weights = response.data;
+
+    // Assign weights to BRAIN
+    BRAIN.weights = weights;
+    console.log("Assigned weights to BRAIN:", BRAIN.weights);
+  } catch (error) {
+    console.error("Error fetching weights:", error);
+  }
+}
 
 interface Brain {
   weights: Record<string, Record<string, number>>;
@@ -277,14 +294,25 @@ const BRAIN: Brain = {
   setup() {
     this.postSynaptic = {};
     this.connectome = {};
+
+    if (!this.weights || Object.keys(this.weights).length === 0) {
+      console.warn("Weights are empty. Cannot set up connectome.");
+      return;
+    }
+
+    // Initialize connectome using weights
     for (const preSynaptic in this.weights) {
       this.connectome[preSynaptic] = () => {
         this.dendriteAccumulate(preSynaptic);
       };
     }
-    Object.keys(this.weights).forEach((key) => {
-      this.postSynaptic[key] = [0, 0];
-    });
+
+    // Initialize postSynaptic neurons
+    for (const neuron in this.weights) {
+      this.postSynaptic[neuron] = [0, 0];
+    }
+
+    console.log("BRAIN.connectome initialized:", this.connectome);
   },
   update() {
     if (this.stimulateHungerNeurons) {
