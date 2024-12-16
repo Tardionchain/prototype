@@ -1,9 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Transaction, connectDB } from "@/backend/mongodb";
 
-export const revalidate = 60; // Revalidate every 60 seconds
-export const dynamic = "force-dynamic";
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,

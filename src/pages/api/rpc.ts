@@ -73,7 +73,8 @@ export default async function brainWeights(
     // Fetch transactions from the database
     const transactions = await Transaction.find({})
       .sort({ blockTime: 1 })
-      .limit(100);
+      .limit(100)
+      .lean();
 
     // Group transactions into bundles
     const transactionBundleSize = 50;

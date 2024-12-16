@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import BRAIN, { initializeWeights } from "@/lib/connectome";
 import { circle, IKChain } from "@/lib/IK";
-import { NeuronState } from "@/lib/types";
+import { NeuronState, ITransaction } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { AlignJustify, Loader2 } from "lucide-react";
+import axios from "axios";
 import {
   Drawer,
   DrawerClose,
@@ -13,15 +15,34 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+const shortenHash = (hash: string): string => {
+  if (!hash) return "";
+  return `${hash.slice(0, 4)}...${hash.slice(-4)}`;
+};
 
 const TardiSimulation = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [neuronStates, setNeuronStates] = useState<NeuronState[]>([]);
   const neuronNamesRef = useRef<string[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<ITransaction[]>(
+    [],
+  );
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true); // Separate loading state for /api/recent
 
   useEffect(() => {
     const setupSimulation = async () => {
-      await initializeWeights(); // Ensure weights are initialized before simulation
+      await initializeWeights().then(() => {
+        setIsLoadingRecent(false); // Stop loading for the second API
+      }); // Ensure weights are initialized before simulation
       if (Object.keys(BRAIN.weights || {}).length === 0) {
         console.error("Weights are empty. Simulation cannot proceed.");
         return;
@@ -45,6 +66,18 @@ const TardiSimulation = () => {
       }
 
       const updateBrain = async () => {
+        axios
+          .get("/api/recent")
+          .then((res) => {
+            setRecentTransactions(res.data);
+          })
+          .catch((error) => {
+            console.error("Error fetching recent transactions:", error);
+          })
+          .finally(async () => {
+            await initializeWeights();
+            BRAIN.setup();
+          });
         BRAIN.update();
 
         const updatedNeurons = neuronNamesRef.current.map((ps) => {
@@ -179,7 +212,74 @@ const TardiSimulation = () => {
   }, []);
 
   return (
-    <div className="flex flex-col overflow-hidden h-screen">
+    <div className="flex flex-col overflow-hidden relative h-screen">
+      {isLoadingRecent && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/20">
+          <Loader2 className="h-4 w-4 animate-spin" />
+        </div>
+      )}
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button
+            variant="outline"
+            className="flex gap-4 right-8 w-fit absolute top-8"
+          >
+            Recent Inputs <AlignJustify />
+          </Button>
+        </SheetTrigger>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>recent inputs</SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="h-[80vh] mt-4 w-full rounded-md border p-4">
+            <table className="w-full">
+              <thead>
+                <tr className="text-xs text-gray-200">
+                  <th className="text-left pb-2">Time</th>
+                  <th className="text-left pb-2">From</th>
+                  <th className="text-right pb-2">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="w-full">
+                {recentTransactions.map((tx, index) => {
+                  const timeAgo = tx.blockTime
+                    ? Math.floor((Date.now() - tx.blockTime * 1000) / 1000) < 60
+                      ? `${Math.floor((Date.now() - tx.blockTime * 1000) / 1000)}s ago`
+                      : Math.floor((Date.now() - tx.blockTime * 1000) / 60000) <
+                          60
+                        ? `${Math.floor((Date.now() - tx.blockTime * 1000) / 60000)}m ago`
+                        : `${Math.floor((Date.now() - tx.blockTime * 1000) / 3600000)}h ago`
+                    : "Pending";
+
+                  const amount = (Number(tx.amount) / 1e9).toFixed(2);
+
+                  return (
+                    <tr
+                      key={index}
+                      className="text-xs text-gray-300 cursor-pointer"
+                      onClick={() =>
+                        window.open(
+                          `https://solscan.io/tx/${tx.signature}`,
+                          "_blank",
+                        )
+                      }
+                    >
+                      <td className="py-1">{timeAgo}</td>
+                      <td className="py-1">
+                        <span className="bg-black px-2 py-0.5 rounded-full">
+                          {shortenHash(tx.from)}
+                        </span>
+                      </td>
+                      <td className="text-right py-1">{amount}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+
       <Drawer>
         <DrawerTrigger asChild>
           <Button

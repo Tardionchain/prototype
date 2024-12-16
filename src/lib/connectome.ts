@@ -11,7 +11,6 @@ export async function initializeWeights() {
 
     // Assign weights to BRAIN
     BRAIN.weights = weights;
-    console.log("Assigned weights to BRAIN:", BRAIN.weights);
   } catch (error) {
     console.error("Error fetching weights:", error);
   }
