@@ -3,9 +3,23 @@ import { Transaction, connectDB } from "@/backend/mongodb";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { neurons } from "@/lib/neurons"; // Assuming this contains the full neuron list
 
-// Function to generate initial dynamic weights
-function generateDynamicWeights(
+// Function to normalize a hexadecimal segment to integer values
+function hexToNormalizedInteger(hex: string): number {
+  if (!hex) return 0;
+  const intValue = parseInt(hex, 16);
+  const maxHex = Math.pow(16, hex.length) - 1;
+  return (intValue / maxHex) * 2 - 1; // Normalize to [-1, 1]
+}
+
+// Function to hash a transaction signature
+function hashSignature(signature: string): string {
+  return createHash("sha256").update(signature).digest("hex");
+}
+
+// Function to process weights dynamically
+export function generateDynamicWeights(
   neurons: string[],
+  transactions: { signature: string }[],
 ): Record<string, Record<string, number>> {
   const weights: Record<string, Record<string, number>> = {};
 
@@ -14,48 +28,45 @@ function generateDynamicWeights(
 
     neurons.forEach((postSynapticNeuron) => {
       if (preSynapticNeuron !== postSynapticNeuron) {
-        // Assign random weight between -1 and 1
-        weights[preSynapticNeuron][postSynapticNeuron] = Math.random() * 2 - 1;
+        weights[preSynapticNeuron][postSynapticNeuron] = 0; // Initialize weights to 0
       }
     });
   });
 
-  return weights;
-}
-
-// Function to hash a transaction signature
-function hashSignature(signature: string): string {
-  return createHash("sha256").update(signature).digest("hex");
-}
-
-// Function to normalize a hexadecimal segment to [-1, 1]
-function hexToNormalizedNumber(hex: string): number {
-  if (!hex) return 0; // Return 0 for empty input
-
-  const intValue = parseInt(hex, 16);
-  const maxHex = Math.pow(16, hex.length) - 1;
-  return (intValue / maxHex) * 2 - 1; // Normalize to [-1, 1]
-}
-
-// Function to process a single transaction and update weights
-export function processTransaction(
-  weights: Record<string, Record<string, number>>,
-  signature: string,
-) {
-  Object.keys(weights).forEach((preSynapticNeuron) => {
-    const postSynapticConnections = weights[preSynapticNeuron];
-
-    Object.keys(postSynapticConnections).forEach((postSynapticNeuron) => {
-      // Combine the signature and neuron pair to create a unique input for hashing
-      const combinedHashInput = `${signature}-${preSynapticNeuron}-${postSynapticNeuron}`;
-      const combinedHash = hashSignature(combinedHashInput);
-
-      // Use a segment of the combined hash to generate the weight
-      const segment = combinedHash.substring(0, 8); // Use the first 8 characters of the hash
-      postSynapticConnections[postSynapticNeuron] =
-        hexToNormalizedNumber(segment);
+  transactions.forEach(({ signature }) => {
+    neurons.forEach((preSynapticNeuron) => {
+      neurons.forEach((postSynapticNeuron) => {
+        if (preSynapticNeuron !== postSynapticNeuron) {
+          const combinedHashInput = `${signature}-${preSynapticNeuron}-${postSynapticNeuron}`;
+          const combinedHash = hashSignature(combinedHashInput);
+          const segment = combinedHash.substring(0, 8);
+          weights[preSynapticNeuron][postSynapticNeuron] +=
+            hexToNormalizedInteger(segment);
+        }
+      });
     });
   });
+
+  // Format weights to match the desired output template
+  const formattedWeights: Record<string, Record<string, number>> = {};
+
+  Object.keys(weights).forEach((preSynapticNeuron) => {
+    const connections = Object.entries(weights[preSynapticNeuron])
+      .filter(([_, weight]) => weight !== 0) // Remove zero-weight connections
+      .reduce(
+        (obj, [postSynapticNeuron, weight]) => {
+          obj[postSynapticNeuron] = weight;
+          return obj;
+        },
+        {} as Record<string, number>,
+      );
+
+    if (Object.keys(connections).length > 0) {
+      formattedWeights[preSynapticNeuron] = connections;
+    }
+  });
+
+  return formattedWeights;
 }
 
 // API handler
@@ -64,11 +75,7 @@ export default async function brainWeights(
   res: NextApiResponse,
 ) {
   try {
-    // Connect to the database
-    await connectDB();
-
-    // Generate initial weights
-    const weights = generateDynamicWeights(neurons);
+    await connectDB(); // Connect to the database
 
     // Fetch transactions from the database
     const transactions = await Transaction.find({})
@@ -76,25 +83,14 @@ export default async function brainWeights(
       .limit(100)
       .lean();
 
-    // Group transactions into bundles
-    const transactionBundleSize = 50;
-    const transactionGroups = [];
-    for (let i = 0; i < transactions.length; i += transactionBundleSize) {
-      const group = transactions.slice(i, i + transactionBundleSize);
-      if (group.length > 0) {
-        transactionGroups.push(group);
-      }
+    if (!transactions.length) {
+      return res.status(200).json({ message: "No transactions found." });
     }
 
-    // Update weights based on transaction groups
-    for (const group of transactionGroups) {
-      for (const transaction of group) {
-        processTransaction(weights, transaction.signature);
-      }
-    }
+    // Generate dynamic weights
+    const weights = generateDynamicWeights(neurons, transactions);
 
-    // Respond with the updated weights
-    res.status(200).json(weights);
+    res.status(200).json(weights); // Respond with the updated weights
   } catch (error) {
     console.error("Error in brainWeights API:", error);
     res.status(500).json({ error: "Internal Server Error" });
