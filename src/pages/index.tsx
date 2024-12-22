@@ -16,6 +16,12 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -297,19 +303,28 @@ const TardiSimulation = () => {
             </DrawerHeader>
             <div className="p-4 pb-0">
               <div className="h-fit w-full transition-all flex gap-0 flex-wrap">
-                {neuronStates.map(({ name, backgroundColor, opacity }) => (
+                 {neuronStates.map(({ name, backgroundColor, opacity }) => (
                   <div key={name}>
-                    <span
-                      id={name}
-                      className="brainNode"
-                      style={{
-                        display: "block",
-                        border: "1px solid #000",
-                        padding: "5px",
-                        backgroundColor,
-                        opacity,
-                      }}
-                    ></span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            id={name}
+                            className="brainNode"
+                            style={{
+                              display: "block",
+                              border: "1px solid #000",
+                              padding: "5px",
+                              backgroundColor,
+                              opacity,
+                            }}
+                          ></span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{name}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 ))}
               </div>
