@@ -21,22 +21,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const ANIMATION_FPS = 60;
-const UPDATE_INTERVAL = 16;
-const HISTORY_INTERVAL = 180000;
 const STIMULATION_DELAY = 1000;
-const SCALING_FACTOR = 8;
-const TURN_SPEED = 0.3;
 const SPEED_DAMPING = 0.99;
 const MIN_SPEED = 1;
 const MAX_SPEED = 10;
-const ACCELERATION = 0.5;
 const VELOCITY_SMOOTHING = 0.8;
 const BOUNCE_REDUCTION = 0.9;
 const DEFAULT_WIDTH = 1920;
 const DEFAULT_HEIGHT = 1080;
-const DIRECTION_CHANGE_RATE = 0.15;
-const RANDOM_FORCE_SCALE = 0.2;
 
 const shortenHash = (hash: string): string => {
   if (!hash) return "";
@@ -55,22 +47,9 @@ interface AnimationState {
   speedChangeInterval: number;
 }
 
-const DEFAULT_STATE: AnimationState = {
-  x: DEFAULT_WIDTH / 2,
-  y: DEFAULT_HEIGHT / 2,
-  velocityX: 0,
-  velocityY: 0,
-  facingDir: 0,
-  targetDir: 0,
-  speed: 0,
-  targetSpeed: 0,
-  speedChangeInterval: 0
-};
-
-const NeuronNode = memo(({ name, backgroundColor, opacity }: {
+const NeuronNode = memo(({ name, backgroundColor }: {
   name: string;
   backgroundColor: string;
-  opacity: number;
 }) => {
   const value = BRAIN.postSynaptic[name]?.[BRAIN.thisState] || 0;
   const normalizedValue = Math.tanh(value / 30); // Normalize the value for visualization
@@ -120,7 +99,6 @@ const NeuronGroup = memo(({ title, neurons }: {
             key={neuron.name} 
             name={neuron.name} 
             backgroundColor={getNeuronColor(neuron.name)}
-            opacity={1.0}
           />
         ))}
       </div>
@@ -143,15 +121,14 @@ function getNeuronColor(neuronName: string): string {
 
 const TardiSimulation = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [neuronStates, setNeuronStates] = useState<NeuronState[]>([]);
   const neuronNamesRef = useRef<string[]>([]);
+  const [neurons, setNeurons] = useState<Array<{ name: string; backgroundColor: string }>>([]);
   const [recentTransactions, setRecentTransactions] = useState<ITransaction[]>([]);
   const [loadingState, setLoadingState] = useState({
     position: true,
     brain: true,
     transactions: true
   });
-  const [dimensions, setDimensions] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
   const [isInitialized, setIsInitialized] = useState(false);
   const chainRef = useRef<IKChain | null>(null);
   const targetRef = useRef({ x: 0, y: 0 });
@@ -400,17 +377,16 @@ const TardiSimulation = () => {
       if (neuronNamesRef.current.length) {
         const updatedNeurons = neuronNamesRef.current.map((name) => ({
           name,
-          backgroundColor: getNeuronColor(name),
-          opacity: 1.0
+          backgroundColor: getNeuronColor(name)
         }));
-        setNeuronStates(updatedNeurons);
+        setNeurons(updatedNeurons);
       }
     };
 
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      setDimensions({ width: canvas.width, height: canvas.height });
+      if (!canvasRef.current) return;
+      canvasRef.current.width = window.innerWidth;
+      canvasRef.current.height = window.innerHeight;
     };
 
     window.addEventListener("resize", resize);
@@ -520,6 +496,16 @@ const TardiSimulation = () => {
 
     return () => clearInterval(displayInterval);
   }, [isInitialized]);
+
+  useEffect(() => {
+    if (!neuronNamesRef.current.length) return;
+    
+    const updatedNeurons = neuronNamesRef.current.map((name) => ({
+      name,
+      backgroundColor: getNeuronColor(name)
+    }));
+    setNeurons(updatedNeurons);
+  }, [neuronNamesRef.current.length]);
 
   return (
     <div className="flex flex-col overflow-hidden relative h-screen">

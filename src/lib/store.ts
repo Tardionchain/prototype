@@ -10,12 +10,6 @@ interface Position {
   speedChangeInterval: number;
 }
 
-interface HistoryEntry {
-  position: Position;
-  timestamp: number;
-  transaction?: string;
-}
-
 export class MovementStore {
   private position: Position | null = null;
   private syncInterval: NodeJS.Timeout | null = null;
