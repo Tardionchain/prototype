@@ -296,8 +296,7 @@ const TardiSimulation = () => {
       // Update neuron states
       if (neuronNamesRef.current.length) {
         const updatedNeurons = neuronNamesRef.current.map((name) => ({
-          name,
-          backgroundColor: getNeuronColor(name)
+          name
         }));
         setNeurons(updatedNeurons);
       }
@@ -421,8 +420,7 @@ const TardiSimulation = () => {
     if (!neuronNamesRef.current.length) return;
     
     const updatedNeurons = neuronNamesRef.current.map((name) => ({
-      name,
-      backgroundColor: getNeuronColor(name)
+      name
     }));
     setNeurons(updatedNeurons);
   }, [neuronNamesRef.current.length]);
