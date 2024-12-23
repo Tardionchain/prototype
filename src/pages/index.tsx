@@ -42,7 +42,7 @@ interface AnimationState {
 const TardiSimulation = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const neuronNamesRef = useRef<string[]>([]);
-  const [neurons, setNeurons] = useState<Array<{ name: string; backgroundColor: string }>>([]);
+  const [neurons, setNeurons] = useState<Array<{ name: string;}>>([]);
   const [recentTransactions, setRecentTransactions] = useState<ITransaction[]>([]);
   const [loadingState, setLoadingState] = useState({
     position: true,
