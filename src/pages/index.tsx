@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useCallback, memo } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { BRAIN, initializeWeights } from "@/lib/connectome";
 import { circle, IKChain } from "@/lib/IK";
-import { NeuronState, ITransaction } from "@/lib/types";
+import { ITransaction } from "@/lib/types";
 import { movementStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { AlignJustify } from "lucide-react";
@@ -14,12 +14,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 const STIMULATION_DELAY = 1000;
 const SPEED_DAMPING = 0.99;
