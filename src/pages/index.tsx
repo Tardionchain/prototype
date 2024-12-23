@@ -27,8 +27,6 @@ const MIN_SPEED = 1;
 const MAX_SPEED = 10;
 const VELOCITY_SMOOTHING = 0.8;
 const BOUNCE_REDUCTION = 0.9;
-const DEFAULT_WIDTH = 1920;
-const DEFAULT_HEIGHT = 1080;
 
 const shortenHash = (hash: string): string => {
   if (!hash) return "";
@@ -45,78 +43,6 @@ interface AnimationState {
   speed: number;
   targetSpeed: number;
   speedChangeInterval: number;
-}
-
-const NeuronNode = memo(({ name, backgroundColor }: {
-  name: string;
-  backgroundColor: string;
-}) => {
-  const value = BRAIN.postSynaptic[name]?.[BRAIN.thisState] || 0;
-  const normalizedValue = Math.tanh(value / 30); // Normalize the value for visualization
-  const dynamicOpacity = 0.2 + (normalizedValue * 0.8); // Scale opacity from 0.2 to 1.0
-  
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span
-            className="brainNode"
-            style={{
-              display: "block",
-              border: "1px solid #333",
-              borderRadius: "4px",
-              width: "12px",
-              height: "12px",
-              margin: "1px",
-              backgroundColor: backgroundColor || "#666",
-              opacity: dynamicOpacity,
-              transition: "opacity 0.1s ease-in-out",
-            }}
-          />
-        </TooltipTrigger>
-        <TooltipContent>
-          <p className="font-mono text-xs">{name}: {value.toFixed(3)}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-});
-
-NeuronNode.displayName = "NeuronNode";
-
-const NeuronGroup = memo(({ title, neurons }: {
-  title: string;
-  neurons: NeuronState[];
-}) => {
-  if (neurons.length === 0) return null;
-  
-  return (
-    <div className="mb-4">
-      <h3 className="text-sm font-semibold mb-2 text-gray-400">{title}</h3>
-      <div className="flex flex-wrap gap-1">
-        {neurons.map((neuron) => (
-          <NeuronNode 
-            key={neuron.name} 
-            name={neuron.name} 
-            backgroundColor={getNeuronColor(neuron.name)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-});
-
-NeuronGroup.displayName = "NeuronGroup";
-
-// Helper function to get neuron color based on type
-function getNeuronColor(neuronName: string): string {
-  if (neuronName.startsWith('AVB') || neuronName.startsWith('PVC')) return '#4CAF50'; // Forward
-  if (neuronName.startsWith('AVA') || neuronName.startsWith('AVD')) return '#F44336'; // Backward
-  if (neuronName.startsWith('RIV') || neuronName.startsWith('SMD')) return '#2196F3'; // Turn
-  if (neuronName.startsWith('VA') || neuronName.startsWith('VB')) return '#9C27B0'; // Ventral motor
-  if (neuronName.startsWith('DA') || neuronName.startsWith('DB')) return '#FF9800'; // Dorsal motor
-  if (neuronName.startsWith('MD') || neuronName.startsWith('MV')) return '#795548'; // Muscles
-  return '#666666'; // Other neurons
 }
 
 const TardiSimulation = () => {
@@ -138,7 +64,7 @@ const TardiSimulation = () => {
     lastTransaction: null as ITransaction | null,
     error: null as string | null,
   });
-
+  console.log(neurons)
   // Check if everything is loaded
   const isFullyLoaded = !Object.values(loadingState).some(state => state);
 
