@@ -1,11 +1,21 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { BRAIN, initializeWeights } from "@/lib/connectome";
 import { circle, IKChain } from "@/lib/IK";
-import { ITransaction } from "@/lib/types";
+import { ITransaction, NeuronState } from "@/lib/types";
 import { movementStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { AlignJustify } from "lucide-react";
 import axios from "axios";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import {
   Sheet,
   SheetContent,
@@ -42,12 +52,16 @@ interface AnimationState {
 const TardiSimulation = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const neuronNamesRef = useRef<string[]>([]);
-  const [neurons, setNeurons] = useState<Array<{ name: string;}>>([]);
-  const [recentTransactions, setRecentTransactions] = useState<ITransaction[]>([]);
+  const [neurons, setNeurons] = useState<Array<{ name: string }>>([]);
+  const [recentTransactions, setRecentTransactions] = useState<ITransaction[]>(
+    [],
+  );
+  const [neuronStates, setNeuronStates] = useState<NeuronState[]>([]);
+
   const [loadingState, setLoadingState] = useState({
     position: true,
     brain: true,
-    transactions: true
+    transactions: true,
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const chainRef = useRef<IKChain | null>(null);
@@ -58,10 +72,9 @@ const TardiSimulation = () => {
     lastTransaction: null as ITransaction | null,
     error: null as string | null,
   });
-  console.log(neurons)
   // Check if everything is loaded
-  const isFullyLoaded = !Object.values(loadingState).some(state => state);
-
+  const isFullyLoaded = !Object.values(loadingState).some((state) => state);
+  console.log(neurons);
   // Movement state with initial zero position
   const movementRef = useRef<AnimationState>({
     x: 0,
@@ -72,7 +85,7 @@ const TardiSimulation = () => {
     targetDir: 0,
     speed: 0,
     targetSpeed: 0,
-    speedChangeInterval: 0
+    speedChangeInterval: 0,
   });
 
   // Initialize BRAIN weights and fetch recent transactions
@@ -80,13 +93,13 @@ const TardiSimulation = () => {
     const init = async () => {
       try {
         // Fetch last known position first
-        const posResponse = await axios.get('/api/sync');
+        const posResponse = await axios.get("/api/sync");
         if (posResponse.data) {
           const lastPos = posResponse.data;
           // Restore position and movement state
           const initialX = lastPos.x ?? window.innerWidth / 2;
           const initialY = lastPos.y ?? window.innerHeight / 2;
-          
+
           movementRef.current = {
             x: initialX,
             y: initialY,
@@ -96,31 +109,31 @@ const TardiSimulation = () => {
             targetDir: lastPos.targetDir ?? 0,
             speed: lastPos.speed ?? 0,
             targetSpeed: lastPos.targetSpeed ?? 0,
-            speedChangeInterval: lastPos.speedChangeInterval ?? 0
+            speedChangeInterval: lastPos.speedChangeInterval ?? 0,
           };
-          
+
           // Update target position to match
           targetRef.current = { x: initialX, y: initialY };
         }
-        setLoadingState(prev => ({ ...prev, position: false }));
+        setLoadingState((prev) => ({ ...prev, position: false }));
 
         // Initialize BRAIN weights
         await initializeWeights();
-        setLoadingState(prev => ({ ...prev, brain: false }));
-        
+        setLoadingState((prev) => ({ ...prev, brain: false }));
+
         // Fetch recent transactions
-        const txResponse = await axios.get('/api/recent');
+        const txResponse = await axios.get("/api/recent");
         if (txResponse.data) {
           setRecentTransactions(txResponse.data);
         }
-        setLoadingState(prev => ({ ...prev, transactions: false }));
+        setLoadingState((prev) => ({ ...prev, transactions: false }));
 
         setIsInitialized(true);
       } catch (error) {
-        console.error('Initialization error:', error);
-        setApiStatus(prev => ({
+        console.error("Initialization error:", error);
+        setApiStatus((prev) => ({
           ...prev,
-          error: 'Failed to initialize simulation'
+          error: "Failed to initialize simulation",
         }));
         // If we fail to load position, set a default one
         if (loadingState.position) {
@@ -129,16 +142,16 @@ const TardiSimulation = () => {
           movementRef.current = {
             ...movementRef.current,
             x: initialX,
-            y: initialY
+            y: initialY,
           };
           targetRef.current = { x: initialX, y: initialY };
-          setLoadingState(prev => ({ ...prev, position: false }));
+          setLoadingState((prev) => ({ ...prev, position: false }));
         }
       }
     };
-    
+
     init();
-    
+
     return () => {
       // Cleanup
       BRAIN.stimulateHungerNeurons = false;
@@ -162,7 +175,7 @@ const TardiSimulation = () => {
         targetDir: movement.targetDir,
         speed: movement.speed,
         targetSpeed: movement.targetSpeed,
-        speedChangeInterval: movement.speedChangeInterval
+        speedChangeInterval: movement.speedChangeInterval,
       });
     }, 1000); // Sync every second
 
@@ -174,21 +187,75 @@ const TardiSimulation = () => {
 
     BRAIN.setup();
 
+    neuronNamesRef.current = Object.keys(BRAIN.connectome || {});
+    if (neuronNamesRef.current.length == 0) {
+      console.warn("BRAIN.connectome is empty.");
+    }
+
+    // Force initial stimulation
+    BRAIN.stimulateHungerNeurons = true;
+    BRAIN.update();
+    console.log("Initial brain state:", {
+      firstNeuron: neuronNamesRef.current[0],
+      postSynaptic: BRAIN.postSynaptic[neuronNamesRef.current[0]],
+      thisState: BRAIN.thisState,
+      nextState: BRAIN.nextState,
+    });
+
     const updateBrain = () => {
+      // Update brain state
       BRAIN.update();
+
+      // Debug log brain state after update
+      console.log("Brain state after update:", {
+        firstNeuron: neuronNamesRef.current[0],
+        postSynaptic: BRAIN.postSynaptic[neuronNamesRef.current[0]],
+        thisState: BRAIN.thisState,
+        nextState: BRAIN.nextState,
+      });
+
+      const updatedNeurons = neuronNamesRef.current.map((ps) => {
+        const neuronStates = BRAIN.postSynaptic[ps];
+        if (!neuronStates) {
+          console.warn(`No states found for neuron: ${ps}`);
+          return {
+            name: ps,
+            backgroundColor: "#333333",
+            opacity: 0.1,
+          };
+        }
+
+        const neuronValue = neuronStates[BRAIN.thisState];
+        console.log(`Neuron ${ps} value:`, {
+          states: neuronStates,
+          thisState: BRAIN.thisState,
+          value: neuronValue,
+        });
+
+        return {
+          name: ps,
+          backgroundColor: "#55FF55",
+          opacity: Math.min(1, Math.abs(neuronValue) / 5),
+        };
+      });
+      setNeuronStates(updatedNeurons);
+
       const scalingFactor = 10; // Reduced for faster response
       const movement = movementRef.current;
-      
+
       // Calculate new direction and speed
       const newDir = (BRAIN.accumleft - BRAIN.accumright) / scalingFactor;
       movement.targetDir = movement.facingDir + newDir * Math.PI;
-      movement.targetSpeed = (Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 2);
-      movement.speedChangeInterval = (movement.targetSpeed - movement.speed) / (scalingFactor * 0.5);
-      
+      movement.targetSpeed =
+        (Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) /
+        (scalingFactor * 2);
+      movement.speedChangeInterval =
+        (movement.targetSpeed - movement.speed) / (scalingFactor * 0.5);
+
       // Update speed
       movement.speed += movement.speedChangeInterval;
       movement.speed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, movement.speed));
-      
+
       // Handle angle wrapping
       const facingMinusTarget = movement.facingDir - movement.targetDir;
       let angleDiff = facingMinusTarget;
@@ -199,33 +266,37 @@ const TardiSimulation = () => {
           angleDiff = 360 - movement.targetDir + movement.facingDir;
         }
       }
-      
+
       // Apply turning with increased rate
       if (angleDiff > 0) {
         movement.facingDir -= 0.3; // Increased for faster turning
       } else if (angleDiff < 0) {
         movement.facingDir += 0.3; // Increased for faster turning
       }
-      
+
       // Update target position and velocities
       const target = targetRef.current;
       const newVelocityX = Math.cos(movement.facingDir) * movement.speed * 3;
       const newVelocityY = -Math.sin(movement.facingDir) * movement.speed * 3;
-      
+
       // Apply velocity smoothing
-      movement.velocityX = movement.velocityX * VELOCITY_SMOOTHING + newVelocityX * (1 - VELOCITY_SMOOTHING);
-      movement.velocityY = movement.velocityY * VELOCITY_SMOOTHING + newVelocityY * (1 - VELOCITY_SMOOTHING);
-      
+      movement.velocityX =
+        movement.velocityX * VELOCITY_SMOOTHING +
+        newVelocityX * (1 - VELOCITY_SMOOTHING);
+      movement.velocityY =
+        movement.velocityY * VELOCITY_SMOOTHING +
+        newVelocityY * (1 - VELOCITY_SMOOTHING);
+
       // Update positions
       target.x += movement.velocityX;
       target.y += movement.velocityY;
       movement.x = target.x;
       movement.y = target.y;
-      
+
       // Handle wall collisions
       const canvas = canvasRef.current;
       if (!canvas) return;
-      
+
       if (target.x < 0) {
         target.x = 0;
         movement.x = 0;
@@ -239,7 +310,7 @@ const TardiSimulation = () => {
         movement.targetDir = Math.PI - movement.facingDir;
         BRAIN.stimulateNoseTouchNeurons = true;
       }
-      
+
       if (target.y < 0) {
         target.y = 0;
         movement.y = 0;
@@ -253,7 +324,7 @@ const TardiSimulation = () => {
         movement.targetDir = -movement.facingDir;
         BRAIN.stimulateNoseTouchNeurons = true;
       }
-      
+
       // Apply speed damping
       movement.speed *= SPEED_DAMPING;
     };
@@ -268,7 +339,13 @@ const TardiSimulation = () => {
     const draw = () => {
       if (!ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      circle(ctx, targetRef.current.x, targetRef.current.y, 5, "rgba(255,255,255,0.1)");
+      circle(
+        ctx,
+        targetRef.current.x,
+        targetRef.current.y,
+        5,
+        "rgba(255,255,255,0.1)",
+      );
 
       if (chain) {
         ctx.beginPath();
@@ -280,7 +357,7 @@ const TardiSimulation = () => {
         let prevPoint = chain.links[0].head;
         ctx.moveTo(prevPoint.x, prevPoint.y);
 
-        chain.links.forEach(link => {
+        chain.links.forEach((link) => {
           const { head, tail } = link;
           ctx.lineTo(head.x, head.y);
           ctx.lineTo(tail.x, tail.y);
@@ -296,7 +373,7 @@ const TardiSimulation = () => {
       // Update neuron states
       if (neuronNamesRef.current.length) {
         const updatedNeurons = neuronNamesRef.current.map((name) => ({
-          name
+          name,
         }));
         setNeurons(updatedNeurons);
       }
@@ -349,8 +426,8 @@ const TardiSimulation = () => {
       try {
         const startTime = Date.now();
         const [txResponse, posResponse] = await Promise.all([
-          axios.get('/api/recent'),
-          axios.get('/api/sync')
+          axios.get("/api/recent"),
+          axios.get("/api/sync"),
         ]);
 
         const latency = Date.now() - startTime;
@@ -358,11 +435,11 @@ const TardiSimulation = () => {
         if (txResponse.data?.length > 0) {
           setRecentTransactions(txResponse.data);
           // Update latest transaction in status
-          setApiStatus(prev => ({
+          setApiStatus((prev) => ({
             ...prev,
             lastUpdate: Date.now(),
             latency,
-            lastTransaction: txResponse.data[0]
+            lastTransaction: txResponse.data[0],
           }));
         }
 
@@ -378,14 +455,14 @@ const TardiSimulation = () => {
             targetDir: lastPos.targetDir || 0,
             speed: lastPos.speed || 0,
             targetSpeed: lastPos.targetSpeed || 0,
-            speedChangeInterval: lastPos.speedChangeInterval || 0
+            speedChangeInterval: lastPos.speedChangeInterval || 0,
           });
         }
       } catch (error) {
-        console.error('Status update error:', error);
-        setApiStatus(prev => ({
+        console.error("Status update error:", error);
+        setApiStatus((prev) => ({
           ...prev,
-          error: 'Failed to update status'
+          error: "Failed to update status",
         }));
       }
     };
@@ -404,9 +481,9 @@ const TardiSimulation = () => {
     if (!isInitialized) return;
 
     const updatePositionDisplay = () => {
-      setApiStatus(prev => ({
+      setApiStatus((prev) => ({
         ...prev,
-        lastUpdate: Date.now()
+        lastUpdate: Date.now(),
       }));
     };
 
@@ -418,9 +495,9 @@ const TardiSimulation = () => {
 
   useEffect(() => {
     if (!neuronNamesRef.current.length) return;
-    
+
     const updatedNeurons = neuronNamesRef.current.map((name) => ({
-      name
+      name,
     }));
     setNeurons(updatedNeurons);
   }, [neuronNamesRef.current.length]);
@@ -431,14 +508,17 @@ const TardiSimulation = () => {
         <div className="fixed inset-0 flex flex-col items-center justify-center bg-black gap-4">
           <div className="text-white text-lg">Loading simulation...</div>
           <div className="flex flex-col gap-2 text-sm text-gray-400">
-            <div>Position: {loadingState.position ? "Loading..." : "Ready ✓"}</div>
+            <div>
+              Position: {loadingState.position ? "Loading..." : "Ready ✓"}
+            </div>
             <div>Brain: {loadingState.brain ? "Loading..." : "Ready ✓"}</div>
-            <div>Transactions: {loadingState.transactions ? "Loading..." : "Ready ✓"}</div>
+            <div>
+              Transactions:{" "}
+              {loadingState.transactions ? "Loading..." : "Ready ✓"}
+            </div>
           </div>
           {apiStatus.error && (
-            <div className="text-red-400 mt-4">
-              Error: {apiStatus.error}
-            </div>
+            <div className="text-red-400 mt-4">Error: {apiStatus.error}</div>
           )}
         </div>
       ) : (
@@ -448,7 +528,9 @@ const TardiSimulation = () => {
             <div className="flex flex-col gap-2">
               <div className="flex justify-between">
                 <span>Last Update:</span>
-                <span>{formatTimeAgo(Math.floor(apiStatus.lastUpdate / 1000))}</span>
+                <span>
+                  {formatTimeAgo(Math.floor(apiStatus.lastUpdate / 1000))}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Latency:</span>
@@ -458,15 +540,23 @@ const TardiSimulation = () => {
                 <div className="flex flex-col gap-1 border-t border-white/20 pt-2 mt-1">
                   <div className="flex justify-between">
                     <span>Latest TX:</span>
-                    <span>{shortenHash(apiStatus.lastTransaction.signature)}</span>
+                    <span>
+                      {shortenHash(apiStatus.lastTransaction.signature)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Amount:</span>
-                    <span>{(Number(apiStatus.lastTransaction.amount) / 1e9).toFixed(2)}</span>
+                    <span>
+                      {(Number(apiStatus.lastTransaction.amount) / 1e9).toFixed(
+                        2,
+                      )}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Time:</span>
-                    <span>{formatTimeAgo(apiStatus.lastTransaction.blockTime)}</span>
+                    <span>
+                      {formatTimeAgo(apiStatus.lastTransaction.blockTime)}
+                    </span>
                   </div>
                 </div>
               )}
@@ -479,13 +569,15 @@ const TardiSimulation = () => {
                 <div className="flex justify-between">
                   <span>Position:</span>
                   <span>
-                    {Math.round(movementRef.current.x)}, {Math.round(movementRef.current.y)}
+                    {Math.round(movementRef.current.x)},{" "}
+                    {Math.round(movementRef.current.y)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Velocity:</span>
                   <span>
-                    {movementRef.current.velocityX.toFixed(2)}, {movementRef.current.velocityY.toFixed(2)}
+                    {movementRef.current.velocityX.toFixed(2)},{" "}
+                    {movementRef.current.velocityY.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -495,7 +587,48 @@ const TardiSimulation = () => {
               </div>
             </div>
           </div>
-
+          <Drawer>
+            <DrawerTrigger asChild>
+              <Button
+                variant="outline"
+                className="absolute bottom-4 left-1/2 transform -translate-x-1/2"
+              >
+                Open Brain 🧠
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent>
+              <div className="mx-auto w-full max-w-2xl">
+                <DrawerHeader>
+                  <DrawerTitle>Tardi brain activities</DrawerTitle>
+                  <DrawerDescription>post-synaptic neurons</DrawerDescription>
+                </DrawerHeader>
+                <div className="p-4 pb-0">
+                  <div className="h-fit w-full transition-all flex gap-0 flex-wrap">
+                    {neuronStates.map(({ name, backgroundColor, opacity }) => (
+                      <div key={name}>
+                        <span
+                          id={name}
+                          className="brainNode"
+                          style={{
+                            display: "block",
+                            border: "1px solid #000",
+                            padding: "5px",
+                            backgroundColor,
+                            opacity,
+                          }}
+                        ></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <DrawerFooter>
+                  <DrawerClose asChild>
+                    <Button variant="outline">Close</Button>
+                  </DrawerClose>
+                </DrawerFooter>
+              </div>
+            </DrawerContent>
+          </Drawer>
           <Sheet>
             <SheetTrigger asChild>
               <Button
@@ -523,7 +656,12 @@ const TardiSimulation = () => {
                       <tr
                         key={tx.signature || index}
                         className="text-xs text-gray-300 cursor-pointer"
-                        onClick={() => window.open(`https://solscan.io/tx/${tx.signature}`, "_blank")}
+                        onClick={() =>
+                          window.open(
+                            `https://solscan.io/tx/${tx.signature}`,
+                            "_blank",
+                          )
+                        }
                       >
                         <td className="py-1">{formatTimeAgo(tx.blockTime)}</td>
                         <td className="py-1">
