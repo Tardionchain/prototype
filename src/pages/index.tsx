@@ -72,7 +72,7 @@ const TardiSimulation = () => {
   });
   // Check if everything is loaded
   const isFullyLoaded = !Object.values(loadingState).some(state => state);
-
+  console.log(neurons)
   // Movement state with initial zero position
   const movementRef = useRef<AnimationState>({
     x: 0,
