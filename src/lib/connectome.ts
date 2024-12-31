@@ -227,7 +227,12 @@ const BRAIN: Brain = {
       // Clear next state for upcoming cycle
       this.postSynaptic[ps][this.nextState] = 0;
     }
-    
+    console.log("Network state:", {
+      firingNeurons: firingCount,
+      maxValue,
+      maxNeuron,
+      sampleNeuron: this.postSynaptic[Object.keys(this.postSynaptic)[0]],
+    });
   },
   fireNeuron(fneuron) {
     if (fneuron !== "MVULVA") {
